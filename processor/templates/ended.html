@@ -1,0 +1,22 @@
+{% extends "layout.html" %}
+{% block body %}
+{% if outcome == "continue" %}
+<div class="card done">
+  <h1>Review submitted</h1>
+  <p>
+    {% if approved is defined %}{{ approved }} file{{ "" if approved == 1 else "s" }} approved.{% endif %}
+    The workflow continues with the approved files. You can close this tab.
+  </p>
+</div>
+{% elif outcome == "stop" %}
+<div class="card done stopped">
+  <h1>Workflow stopped</h1>
+  <p>The run ends as failed at this step, with your notes in its log. You can close this tab.</p>
+</div>
+{% else %}
+<div class="card done stopped">
+  <h1>Session ended</h1>
+  <p>This review session has ended. You can close this tab.</p>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=https://schemas.pennsieve.io/app-manifest/v1.json
+# What this app is, for the app store and the workflow builder.
+schemaVersion: "1.0"
+application:
+  name: Review files
+  description: >-
+    Pauses the workflow so a person can look over the files from the previous
+    step in their browser, approve or reject each one and leave notes. The
+    approved files go on to the next step; the reviewer can also stop the
+    workflow here.
+  type: processor
+  tags: [interactive, review, quality-control]
+
+runtime:
+  cpu: 1024
+  memory: 2048
+  # A live session, not a batch step: the workflow pauses while it runs and
+  # the user reaches it through the auth proxy.
+  interactive: true
+  # The kind of live session (webapp: a web page the app serves itself).
+  sessionType: webapp
+  computeTypes: [standard]
+
+parameters:
+  - name: IDLE_TIMEOUT_SECONDS
+    type: integer
+    description: >-
+      Close the session, and fail the step, after this many seconds without a
+      request from the reviewer's browser.
+    defaultValue: 3600
+    required: false
+
+inputs:
+  - name: files
+    description: The files to review, from the previous step.
+
+# Each output is its own folder, OUTPUT_DIR/<name>/.
+outputs:
+  - name: approved
+    description: The approved files, with the paths they came in with.
+  - name: review
+    description: review.json, with the decision for every file and the reviewer's notes.
+    mediaTypes: [application/json]

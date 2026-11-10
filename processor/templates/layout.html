@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Review files</title>
+  <!-- Everything inline: the page loads nothing from outside the session. -->
+  <style>
+    :root {
+      --ink: #1c2b3a; --muted: #5d6b7a; --line: #dde3ea; --bg: #f5f7fa;
+      --card: #fff; --primary: #011f5b; --danger: #b3261e; --ok: #1b7f4c;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    main { max-width: 860px; margin: 0 auto; padding: 32px 16px 64px; }
+    h1 { font-size: 22px; margin: 0 0 4px; }
+    p.lead { color: var(--muted); margin: 0 0 24px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+    .error { border-color: var(--danger); color: var(--danger); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); }
+    th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+    td.size, th.size { text-align: right; white-space: nowrap; color: var(--muted); }
+    td.pick, th.pick { width: 90px; }
+    td.path { word-break: break-all; }
+    a { color: var(--primary); }
+    .tools { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; color: var(--muted); font-size: 13px; }
+    .tools button { background: none; border: 0; padding: 0; color: var(--primary); cursor: pointer; font: inherit; text-decoration: underline; }
+    label.notes { display: block; font-weight: 600; margin-bottom: 6px; }
+    textarea { width: 100%; min-height: 96px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; font: inherit; resize: vertical; }
+    .actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    .actions button { border: 1px solid transparent; border-radius: 6px; padding: 10px 18px; font: inherit; font-weight: 600; cursor: pointer; }
+    button.primary { background: var(--primary); color: #fff; }
+    button.danger { background: #fff; color: var(--danger); border-color: var(--danger); }
+    .hint { color: var(--muted); font-size: 13px; margin: 16px 0 0; }
+    .done h1 { color: var(--ok); }
+    .done.stopped h1 { color: var(--danger); }
+  </style>
+</head>
+<body>
+  <main>
+    {% block body %}{% endblock %}
+  </main>
+</body>
+</html>

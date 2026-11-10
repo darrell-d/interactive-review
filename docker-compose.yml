@@ -1,0 +1,29 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - dev.env
+    # The session proxy's port. It is published here because the proxy shares
+    # this container's network (below); the app itself stays on localhost.
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./sample-input:/data/input:ro
+      - ./data/output:/data/output
+
+  # The platform's auth sidecar, as it runs next to the app in the ECS task:
+  # same network namespace, so it reaches the app at 127.0.0.1:8888 and is the
+  # only way in. Auth is off locally; on a compute node it checks the session
+  # token workflow-service signs.
+  session-proxy:
+    image: pennsieve/session-proxy:latest
+    platform: linux/amd64
+    network_mode: "service:app"
+    environment:
+      AUTH_DISABLED: "true"
+      LISTEN_ADDR: ":8080"
+      KERNEL_ADDR: "127.0.0.1:8888"
+    depends_on:
+      - app

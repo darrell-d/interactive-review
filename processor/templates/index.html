@@ -1,0 +1,71 @@
+{% extends "layout.html" %}
+{% block body %}
+<h1>Review files</h1>
+<p class="lead">
+  The workflow is paused here. Look over the files from the previous step,
+  untick any that should not go on, then continue or stop the workflow.
+</p>
+
+{% if error %}
+<div class="card error" role="alert">{{ error }}</div>
+{% endif %}
+
+<form method="post" action="{{ url_for('review') }}">
+  <div class="card">
+    {% if files %}
+    <div class="tools">
+      <span><span id="count">{{ files|length }}</span> of {{ files|length }} approved</span>
+      <span>
+        <button type="button" data-all="1">Approve all</button> ·
+        <button type="button" data-all="0">Reject all</button>
+      </span>
+    </div>
+    <table>
+      <thead>
+        <tr><th class="pick">Approve</th><th>File</th><th class="size">Size</th></tr>
+      </thead>
+      <tbody>
+        {% for f in files %}
+        <tr>
+          <td class="pick"><input type="checkbox" name="approved" value="{{ f.path }}" checked aria-label="Approve {{ f.path }}"></td>
+          <td class="path"><a href="{{ url_for('file', path=f.path) }}" target="_blank" rel="noopener">{{ f.path }}</a></td>
+          <td class="size">{{ f.size|filesizeformat }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p>The previous step produced no files.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <label class="notes" for="notes">Notes</label>
+    <textarea id="notes" name="notes" placeholder="Optional. Saved with the review."></textarea>
+  </div>
+
+  <div class="actions">
+    <button class="primary" type="submit" name="action" value="continue">Continue workflow</button>
+    <button class="danger" type="submit" name="action" value="stop"
+            onclick="return confirm('Stop the workflow here? The run will end as failed.')">Stop workflow</button>
+  </div>
+  <p class="hint">
+    This session closes by itself, and the run fails, after {{ idle_minutes }}
+    minutes without activity.
+  </p>
+</form>
+
+<script>
+  // The count of ticked files, and the approve-all / reject-all links.
+  const boxes = Array.from(document.querySelectorAll('input[name="approved"]'));
+  const count = document.getElementById("count");
+  const recount = () => { if (count) count.textContent = boxes.filter((b) => b.checked).length; };
+  boxes.forEach((b) => b.addEventListener("change", recount));
+  document.querySelectorAll("button[data-all]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      boxes.forEach((b) => { b.checked = btn.dataset.all === "1"; });
+      recount();
+    })
+  );
+</script>
+{% endblock %}

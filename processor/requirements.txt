@@ -1,0 +1,2 @@
+# The web server. Nothing else: the app only lists, serves and copies files.
+flask>=3.1,<4
