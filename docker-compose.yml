@@ -9,9 +9,10 @@ services:
     # this container's network (below); the app itself stays on localhost.
     ports:
       - "8080:8080"
+    # sample-input/ and data/output/ unless local-workflow.sh says otherwise.
     volumes:
-      - ./sample-input:/data/input:ro
-      - ./data/output:/data/output
+      - ${SESSION_INPUT:-./sample-input}:/data/input:ro
+      - ${SESSION_OUTPUT:-./data/output}:/data/output
 
   # The platform's auth sidecar, as it runs next to the app in the ECS task:
   # same network namespace, so it reaches the app at 127.0.0.1:8888 and is the

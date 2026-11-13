@@ -1,51 +1,41 @@
 {% extends "layout.html" %}
 {% block body %}
-<h1>Review files</h1>
+<h1>Organize files</h1>
 <p class="lead">
-  The workflow is paused here. Look over the files from the previous step,
-  untick any that should not go on, then continue or stop the workflow.
+  The workflow is paused here. Rename files and folders, drag them into other
+  folders, then save. Nothing is moved yet: the workflow gets a manifest of
+  what you did here, as instructions for a later step to carry out.
 </p>
 
-{% if error %}
-<div class="card error" role="alert">{{ error }}</div>
-{% endif %}
+<div id="message" class="card error" role="alert" {% if not error %}hidden{% endif %}>{{ error }}</div>
 
-<form method="post" action="{{ url_for('review') }}">
+<form id="form" method="post" action="{{ url_for('save') }}">
+  <input type="hidden" name="operations" id="operations">
+
   <div class="card">
-    {% if files %}
     <div class="tools">
-      <span><span id="count">{{ files|length }}</span> of {{ files|length }} approved</span>
+      <span>{{ files|length }} file{{ "" if files|length == 1 else "s" }}</span>
       <span>
-        <button type="button" data-all="1">Approve all</button> ·
-        <button type="button" data-all="0">Reject all</button>
+        <button type="button" id="new-folder">New folder</button> ·
+        <button type="button" id="undo">Undo</button> ·
+        <button type="button" id="reset">Undo all</button>
       </span>
     </div>
-    <table>
-      <thead>
-        <tr><th class="pick">Approve</th><th>File</th><th class="size">Size</th></tr>
-      </thead>
-      <tbody>
-        {% for f in files %}
-        <tr>
-          <td class="pick"><input type="checkbox" name="approved" value="{{ f.path }}" checked aria-label="Approve {{ f.path }}"></td>
-          <td class="path"><a href="{{ url_for('file', path=f.path) }}" target="_blank" rel="noopener">{{ f.path }}</a></td>
-          <td class="size">{{ f.size|filesizeformat }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <p>The previous step produced no files.</p>
-    {% endif %}
+    <div id="tree" class="tree" aria-label="Files"></div>
+  </div>
+
+  <div class="card">
+    <strong><span id="count">0</span> instruction<span id="plural">s</span> for the next step</strong>
+    <ol id="changes" class="changes"></ol>
   </div>
 
   <div class="card">
     <label class="notes" for="notes">Notes</label>
-    <textarea id="notes" name="notes" placeholder="Optional. Saved with the review."></textarea>
+    <textarea id="notes" name="notes" placeholder="Optional. Saved with the manifest."></textarea>
   </div>
 
   <div class="actions">
-    <button class="primary" type="submit" name="action" value="continue">Continue workflow</button>
+    <button class="primary" type="submit" name="action" value="continue">Save and continue workflow</button>
     <button class="danger" type="submit" name="action" value="stop"
             onclick="return confirm('Stop the workflow here? The run will end as failed.')">Stop workflow</button>
   </div>
@@ -55,17 +45,236 @@
   </p>
 </form>
 
+<script id="files-data" type="application/json">{{ files|tojson }}</script>
 <script>
-  // The count of ticked files, and the approve-all / reject-all links.
-  const boxes = Array.from(document.querySelectorAll('input[name="approved"]'));
-  const count = document.getElementById("count");
-  const recount = () => { if (count) count.textContent = boxes.filter((b) => b.checked).length; };
-  boxes.forEach((b) => b.addEventListener("change", recount));
-  document.querySelectorAll("button[data-all]").forEach((btn) =>
-    btn.addEventListener("click", () => {
-      boxes.forEach((b) => { b.checked = btn.dataset.all === "1"; });
-      recount();
-    })
-  );
+  // The layout lives here until it is saved: each input file's original path
+  // (from) and the path it has now (to). Folders exist only as parts of those
+  // paths, except the ones made or emptied here, kept in `empty` so they stay
+  // on screen to drop things into.
+  //
+  // Everything the person does is also recorded, in order, in `ops`: that
+  // list is what gets saved. The server replays it on the input files
+  // (layout.replay), so the rules here and there must agree.
+  const original = JSON.parse(document.getElementById("files-data").textContent);
+  const fileUrl = "/files/";
+  let files, empty, ops;
+  let history = [];    // the state before each operation, for Undo
+  let renaming = null; // the path being renamed, or null
+  let creating = null; // a new folder still being named: not recorded yet
+
+  const parentOf = (p) => (p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "");
+  const nameOf = (p) => p.slice(p.lastIndexOf("/") + 1);
+  const join = (dir, name) => (dir ? dir + "/" + name : name);
+  const under = (p, dir) => p.startsWith(dir + "/");
+  const sizeOf = (n) => (n < 1000 ? n + " B" : n < 1e6 ? (n / 1e3).toFixed(1) + " kB" : n < 1e9 ? (n / 1e6).toFixed(1) + " MB" : (n / 1e9).toFixed(1) + " GB");
+
+  function reset() {
+    files = original.map((f) => ({ from: f.path, to: f.path, size: f.size }));
+    empty = new Set();
+    ops = [];
+    history = [];
+    renaming = creating = null;
+    say("");
+    render();
+  }
+
+  function say(text) {
+    const box = document.getElementById("message");
+    box.textContent = text;
+    box.hidden = !text;
+  }
+
+  // Record an operation, keeping the state before it for Undo. `before` is
+  // that state when the caller already changed things.
+  const snapshot = () => ({ files: files.map((f) => ({ ...f })), empty: new Set(empty), ops: [...ops] });
+  function record(op, before) {
+    history.push(before);
+    ops.push(op);
+  }
+  function undo() {
+    const last = history.pop();
+    if (!last) return;
+    ({ files, empty, ops } = last);
+    renaming = creating = null;
+    say("");
+    render();
+  }
+
+  // Whether a file or folder is at this path now.
+  const exists = (path) =>
+    files.some((f) => f.to === path || under(f.to, path)) || [...empty].some((d) => d === path || under(d, path));
+
+  const badName = (name) => !name || name === "." || name === ".." || name.includes("/") || name.includes("\\");
+
+  // Put the file or folder at oldPath, and all that's in it, at newPath.
+  // Returns whether it could.
+  function relocate(oldPath, newPath, isFolder) {
+    if (isFolder && under(newPath, oldPath)) return say("A folder can't go inside itself."), false;
+    if (exists(newPath)) return say(`There is already something named "${nameOf(newPath)}" there.`), false;
+    const moved = (p) => (p === oldPath ? newPath : under(p, oldPath) ? newPath + p.slice(oldPath.length) : p);
+    if (isFolder) {
+      files.forEach((f) => { f.to = moved(f.to); });
+      empty = new Set([...empty].map(moved));
+    } else {
+      files.find((f) => f.to === oldPath).to = newPath;
+    }
+    // The folder it left stays, even if that emptied it.
+    if (parentOf(oldPath)) empty.add(parentOf(oldPath));
+    say("");
+    return true;
+  }
+
+  function rename(path, name, isFolder) {
+    name = name.trim();
+    if (badName(name)) return say("A name can't be empty, \".\" or \"..\", or contain a slash."), false;
+    const newPath = join(parentOf(path), name);
+    if (creating === path) {
+      // Naming a folder just made: one "create folder" with its final name.
+      if (newPath !== path && exists(newPath)) return say(`There is already something named "${name}" there.`), false;
+      const before = snapshot();
+      before.empty.delete(path);
+      empty.delete(path);
+      empty.add(newPath);
+      record({ op: "create_folder", path: newPath }, before);
+      creating = null;
+      return say(""), true;
+    }
+    if (newPath === path) return true;
+    const before = snapshot();
+    if (!relocate(path, newPath, isFolder)) return false;
+    record({ op: "rename", path, name }, before);
+    return true;
+  }
+
+  function moveInto(path, dir, isFolder) {
+    const newPath = join(dir, nameOf(path));
+    if (newPath === path) return;
+    const before = snapshot();
+    if (relocate(path, newPath, isFolder)) record({ op: "move", path, to: dir }, before);
+  }
+
+  // The folder tree of the current layout.
+  function tree() {
+    const root = { path: "", dirs: new Map(), files: [] };
+    const dir = (path) => {
+      let at = root;
+      if (path) for (const part of path.split("/")) {
+        if (!at.dirs.has(part)) at.dirs.set(part, { path: join(at.path, part), dirs: new Map(), files: [] });
+        at = at.dirs.get(part);
+      }
+      return at;
+    };
+    files.forEach((f) => dir(parentOf(f.to)).files.push(f));
+    empty.forEach((d) => dir(d));
+    return root;
+  }
+
+  const el = (tag, props = {}, ...children) => {
+    const node = Object.assign(document.createElement(tag), props);
+    node.append(...children);
+    return node;
+  };
+
+  // One row: a folder (file is null) or a file.
+  function row(path, depth, file) {
+    const isFolder = !file;
+    const r = el("div", { className: "row" + (isFolder ? " folder" : ""), draggable: renaming !== path });
+    r.style.paddingLeft = 8 + depth * 22 + "px";
+    r.addEventListener("dragstart", (e) => e.dataTransfer.setData("text/plain", JSON.stringify({ path, isFolder })));
+    if (isFolder) dropTarget(r, path);
+
+    if (renaming === path) {
+      const input = el("input", { type: "text", value: nameOf(path), className: "rename" });
+      // Enter and clicking away save the name; Escape keeps the old one (a
+      // folder just made keeps the name it was given).
+      // (Redrawing removes the input, which can fire its blur again.)
+      let settling = false;
+      const done = (name) => {
+        if (settling || renaming !== path) return;
+        settling = true;
+        if (rename(path, name, isFolder)) renaming = null;
+        render();
+      };
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { e.preventDefault(); done(input.value); }
+        if (e.key === "Escape") done(nameOf(path));
+      });
+      input.addEventListener("blur", () => done(input.value));
+      r.append(input);
+      setTimeout(() => { input.focus(); input.select(); });
+      return r;
+    }
+
+    const label = isFolder
+      ? el("span", { className: "name" }, nameOf(path) + "/")
+      : el("a", { className: "name", href: fileUrl + file.from.split("/").map(encodeURIComponent).join("/"), target: "_blank", rel: "noopener" }, nameOf(path));
+    r.append(label);
+    if (file && file.from !== file.to) r.append(el("span", { className: "was" }, "was " + file.from));
+    if (isFolder && !files.some((f) => under(f.to, path))) r.append(el("span", { className: "was" }, "empty"));
+    r.append(el("span", { className: "grow" }));
+    if (file) r.append(el("span", { className: "size" }, sizeOf(file.size)));
+    const btn = el("button", { type: "button", className: "link" }, "Rename");
+    btn.addEventListener("click", () => { renaming = path; render(); });
+    r.append(btn);
+    return r;
+  }
+
+  // Dropping something on a folder (or on the top row) moves it in there.
+  function dropTarget(node, dir) {
+    node.addEventListener("dragover", (e) => { e.preventDefault(); node.classList.add("over"); });
+    node.addEventListener("dragleave", () => node.classList.remove("over"));
+    node.addEventListener("drop", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      node.classList.remove("over");
+      const { path, isFolder } = JSON.parse(e.dataTransfer.getData("text/plain") || "{}");
+      if (path === undefined || path === dir) return;
+      moveInto(path, dir, isFolder);
+      render();
+    });
+  }
+
+  // An operation, said the way the list under the tree shows it.
+  const describe = (op) =>
+    op.op === "create_folder" ? ["Create folder ", el("code", {}, op.path)]
+    : op.op === "rename" ? ["Rename ", el("code", {}, op.path), " to ", el("code", {}, op.name)]
+    : ["Move ", el("code", {}, op.path), " into ", el("code", {}, op.to ? op.to + "/" : "/")];
+
+  function render() {
+    const box = document.getElementById("tree");
+    const top = el("div", { className: "row folder top" }, el("span", { className: "name" }, "/"), el("span", { className: "was" }, "drop here to move to the top"));
+    dropTarget(top, "");
+    const rows = [top];
+    const walk = (node, depth) => {
+      [...node.dirs.keys()].sort().forEach((name) => {
+        const child = node.dirs.get(name);
+        rows.push(row(child.path, depth, null));
+        walk(child, depth + 1);
+      });
+      node.files.sort((a, b) => a.to.localeCompare(b.to)).forEach((f) => rows.push(row(f.to, depth, f)));
+    };
+    walk(tree(), 1);
+    box.replaceChildren(...rows);
+
+    document.getElementById("count").textContent = ops.length;
+    document.getElementById("plural").hidden = ops.length === 1;
+    document.getElementById("changes").replaceChildren(...ops.map((op) => el("li", {}, ...describe(op))));
+  }
+
+  document.getElementById("reset").addEventListener("click", reset);
+  document.getElementById("undo").addEventListener("click", undo);
+  document.getElementById("new-folder").addEventListener("click", () => {
+    if (creating) return;
+    let name = "new-folder";
+    for (let n = 2; exists(name); n++) name = "new-folder-" + n;
+    empty.add(name);
+    renaming = creating = name;
+    render();
+  });
+  document.getElementById("form").addEventListener("submit", () => {
+    document.getElementById("operations").value = JSON.stringify(ops);
+  });
+
+  reset();
 </script>
 {% endblock %}

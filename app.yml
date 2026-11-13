@@ -2,14 +2,14 @@
 # What this app is, for the app store and the workflow builder.
 schemaVersion: "1.0"
 application:
-  name: Review files
+  name: Organize files
   description: >-
-    Pauses the workflow so a person can look over the files from the previous
-    step in their browser, approve or reject each one and leave notes. The
-    approved files go on to the next step; the reviewer can also stop the
-    workflow here.
+    Pauses the workflow so a person can rename and rearrange the files it was
+    given, in their browser, like a file manager. Nothing is moved: the step's
+    output is a manifest of what they did, as instructions (create folder,
+    rename, move) for a later step to execute.
   type: processor
-  tags: [interactive, review, quality-control]
+  tags: [interactive, files, organize]
 
 runtime:
   cpu: 1024
@@ -26,18 +26,21 @@ parameters:
     type: integer
     description: >-
       Close the session, and fail the step, after this many seconds without a
-      request from the reviewer's browser.
+      request from the person's browser.
     defaultValue: 3600
     required: false
 
 inputs:
   - name: files
-    description: The files to review, from the previous step.
+    description: >-
+      The files to organize: a previous step's, or files and folders chosen
+      for the run. A chosen folder arrives with what's in it.
 
-# Each output is its own folder, OUTPUT_DIR/<name>/.
+# Written to its own folder, OUTPUT_DIR/manifest/.
 outputs:
-  - name: approved
-    description: The approved files, with the paths they came in with.
-  - name: review
-    description: review.json, with the decision for every file and the reviewer's notes.
+  - name: manifest
+    description: >-
+      manifest.json: "operations" is what the person did, in order (create
+      folder, rename, move), for another app to execute; "files" is where every
+      file should be once that's done; "notes" is what the person wrote.
     mediaTypes: [application/json]

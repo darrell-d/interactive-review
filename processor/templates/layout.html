@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Review files</title>
+  <title>Organize files</title>
   <!-- Everything inline: the page loads nothing from outside the session. -->
   <style>
     :root {
@@ -17,12 +17,20 @@
     p.lead { color: var(--muted); margin: 0 0 24px; }
     .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 20px; margin-bottom: 20px; }
     .error { border-color: var(--danger); color: var(--danger); }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); }
-    th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
-    td.size, th.size { text-align: right; white-space: nowrap; color: var(--muted); }
-    td.pick, th.pick { width: 90px; }
-    td.path { word-break: break-all; }
+    .tree { border: 1px solid var(--line); border-radius: 6px; }
+    .row { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-bottom: 1px solid var(--line); cursor: grab; }
+    .row:last-child { border-bottom: 0; }
+    .row.folder .name { font-weight: 600; }
+    .row.top { cursor: default; background: var(--bg); }
+    .row.over { background: #e6ecfb; outline: 2px dashed var(--primary); outline-offset: -2px; }
+    .row .name { word-break: break-all; }
+    .row .was { color: var(--muted); font-size: 12px; }
+    .row .grow { flex: 1; }
+    .row .size { color: var(--muted); white-space: nowrap; font-size: 13px; }
+    .row input.rename { flex: 1; padding: 4px 6px; border: 1px solid var(--primary); border-radius: 4px; font: inherit; }
+    button.link { background: none; border: 0; padding: 0; color: var(--primary); cursor: pointer; font: inherit; font-size: 13px; text-decoration: underline; }
+    ul.changes { margin: 8px 0 0; padding-left: 18px; color: var(--muted); font-size: 13px; }
+    ul.changes code { color: var(--ink); }
     a { color: var(--primary); }
     .tools { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; color: var(--muted); font-size: 13px; }
     .tools button { background: none; border: 0; padding: 0; color: var(--primary); cursor: pointer; font: inherit; text-decoration: underline; }

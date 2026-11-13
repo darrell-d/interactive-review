@@ -2,10 +2,10 @@
 {% block body %}
 {% if outcome == "continue" %}
 <div class="card done">
-  <h1>Review submitted</h1>
+  <h1>Layout saved</h1>
   <p>
-    {% if approved is defined %}{{ approved }} file{{ "" if approved == 1 else "s" }} approved.{% endif %}
-    The workflow continues with the approved files. You can close this tab.
+    {% if operations is defined %}{{ operations }} operation{{ "" if operations == 1 else "s" }} in the manifest.{% endif %}
+    The workflow continues with it. You can close this tab.
   </p>
 </div>
 {% elif outcome == "stop" %}
@@ -16,7 +16,7 @@
 {% else %}
 <div class="card done stopped">
   <h1>Session ended</h1>
-  <p>This review session has ended. You can close this tab.</p>
+  <p>This session has ended. You can close this tab.</p>
 </div>
 {% endif %}
 {% endblock %}

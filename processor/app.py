@@ -1,13 +1,21 @@
-"""The web app the reviewer sees: the list of input files, each one a link to
-look at it, and a form to approve or reject them.
+"""The web app the person sees: the input files as a folder tree they can
+rename and rearrange, and a form that sends the new layout back.
+
+The page keeps the layout in the browser until it is saved, and records each
+thing the person does as an operation. The server replays those operations
+on the input files (layout.replay), which both checks them and gives the
+final layout, and ends the session.
 
 The auth proxy next to this container is the only way in, and it has checked
-the reviewer's session token before a request gets here, so nothing below
+the person's session token before a request gets here, so nothing below
 authenticates.
 """
 
+import json
+
 from flask import Flask, abort, jsonify, redirect, render_template, request, send_from_directory, url_for
 
+from processor.layout import replay
 from processor.session import CLOSED, CONTINUE, STOP
 
 
@@ -44,24 +52,34 @@ def create_app(cfg, session):
     def file(path):
         return send_from_directory(cfg["input_dir"], path)
 
-    @app.post("/review")
-    def review():
+    @app.post("/save")
+    def save():
         action = request.form.get("action")
-        approved = set(request.form.getlist("approved"))
         notes = request.form.get("notes", "").strip()
-        if action not in (CONTINUE, STOP) or not approved <= {f["path"] for f in session.files}:
+        if action not in (CONTINUE, STOP):
             abort(400)
-        if action == CONTINUE and not approved:
-            return page(error="Approve at least one file to continue, or stop the workflow."), 400
-        # The first decision stands: a second tab, or a review after End
+        layout, operations = {}, []
+        if action == CONTINUE:
+            try:
+                sent = json.loads(request.form.get("operations") or "[]")
+            except ValueError:
+                abort(400)
+            if not isinstance(sent, list):
+                abort(400)
+            # The page only records operations that hold, so this fails only
+            # for a request that didn't come from it.
+            layout, operations, why = replay(session.files, sent)
+            if layout is None:
+                return page(error=f"That can't be saved: {why}."), 400
+        # The first decision stands: a second tab, or a save after End
         # Session, is told how the session already ended.
-        if not session.end(action, approved, notes):
+        if not session.end(action, layout, operations, notes):
             return render_template("ended.html", outcome=session.outcome), 409
-        return render_template("ended.html", outcome=action, approved=len(approved))
+        return render_template("ended.html", outcome=action, operations=len(operations))
 
     # The auth proxy calls this when someone clicks End Session on the run
-    # page (the same call it makes to a Jupyter server). Without a submitted
-    # review the step fails: see main.finish.
+    # page (the same call it makes to a Jupyter server). Without a saved
+    # layout the step fails: see main.finish.
     @app.post("/api/shutdown")
     def shutdown():
         session.end(CLOSED)
