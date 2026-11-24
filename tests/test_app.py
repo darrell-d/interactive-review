@@ -82,6 +82,25 @@ class AppTest(unittest.TestCase):
         self.assertEqual(manifest["view"], {"id": "view-1", "version": 2})
         self.assertEqual([f["from"] for f in manifest["files"]], ["raw/a.csv", "raw/b.csv"])
 
+    def test_arranging_as_esds_gives_operations_that_can_be_saved(self):
+        resp = self.client.post("/esds", data={"subject": "S1"})
+        self.assertEqual(resp.status_code, 200)
+        arranged = resp.get_json()
+        self.assertEqual(arranged["missing"][0]["placeholder"], ".dataset_description.json")
+        self.assertIn("raw/a.csv isn't part of the layout", arranged["notes"][1])
+        self.assertIsNone(self.session.outcome)  # a preview: nothing is decided
+        self.assertEqual(self.save(arranged["operations"]).status_code, 200)
+        self.assertEqual(finish(self.cfg, self.session), 0)
+        with open(os.path.join(self.cfg["output_dir"], "manifest", "manifest.json")) as f:
+            saved = json.load(f)["operations"]
+        self.assertIn({"op": "create_file", "path": ".dataset_description.json", "for": "dataset_description.json"}, saved)
+
+    def test_arranging_as_esds_needs_a_usable_subject(self):
+        for data in ({}, {"subject": "two words"}):
+            resp = self.client.post("/esds", data=data)
+            self.assertEqual(resp.status_code, 400)
+            self.assertIn("can't be arranged", resp.get_json()["error"])
+
     def test_saving_with_nothing_done_is_a_manifest_with_no_operations(self):
         self.save([])
         self.assertEqual(finish(self.cfg, self.session), 0)

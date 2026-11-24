@@ -9,6 +9,31 @@
 
 <div id="message" class="card error" role="alert" {% if not error %}hidden{% endif %}>{{ error }}</div>
 
+<!-- Outside the form below, so Enter in a box here can't save the layout. -->
+<div class="card" id="esds">
+  <strong>Arrange as an ESDS dataset</strong>
+  <p class="hint tight">
+    Puts the recording files into the Epilepsy.Science layout (it follows
+    BIDS), below the folder they came from, and lists the files that layout
+    expects but aren't here. It starts from the files as they came, and you
+    can still change anything afterwards.
+  </p>
+  <div class="labels">
+    {% for label in esds_labels %}
+    <label>
+      <span>{{ label.title }}{% if label.optional %} (optional){% endif %}</span>
+      <span class="labelled">
+        <span class="prefix">{{ label.prefix }}</span>
+        <input type="text" data-label="{{ label.name }}" value="{{ label.default or '' }}"
+               placeholder="{{ label.example or '' }}" autocomplete="off" spellcheck="false">
+      </span>
+    </label>
+    {% endfor %}
+  </div>
+  <button type="button" id="esds-go" class="secondary">Preview ESDS layout</button>
+  <div id="esds-result" class="missing" hidden></div>
+</div>
+
 <form id="form" method="post" action="{{ url_for('save') }}">
   <input type="hidden" name="operations" id="operations">
 
@@ -48,7 +73,8 @@
 <script id="files-data" type="application/json">{{ files|tojson }}</script>
 <script>
   // The layout lives here until it is saved: each input file's original path
-  // (from) and the path it has now (to). Folders exist only as parts of those
+  // (from) and the path it has now (to). A placeholder for a missing file is
+  // in the same list, with no `from` and the missing file's name. Folders exist only as parts of those
   // paths, except the ones made or emptied here, kept in `empty` so they stay
   // on screen to drop things into.
   //
@@ -69,6 +95,7 @@
   const sizeOf = (n) => (n < 1000 ? n + " B" : n < 1e6 ? (n / 1e3).toFixed(1) + " kB" : n < 1e9 ? (n / 1e6).toFixed(1) + " MB" : (n / 1e9).toFixed(1) + " GB");
 
   function reset() {
+    document.getElementById("esds-result").hidden = true;
     files = original.map((f) => ({ from: f.path, to: f.path, size: f.size }));
     empty = new Set();
     ops = [];
@@ -207,12 +234,15 @@
 
     const label = isFolder
       ? el("span", { className: "name" }, nameOf(path) + "/")
+      : file.placeholder
+      ? el("span", { className: "name placeholder" }, nameOf(path))
       : el("a", { className: "name", href: fileUrl + file.from.split("/").map(encodeURIComponent).join("/"), target: "_blank", rel: "noopener" }, nameOf(path));
     r.append(label);
-    if (file && file.from !== file.to) r.append(el("span", { className: "was" }, "was " + file.from));
+    if (file && file.placeholder) r.append(el("span", { className: "was" }, "placeholder for " + file.placeholder));
+    else if (file && file.from !== file.to) r.append(el("span", { className: "was" }, "was " + file.from));
     if (isFolder && !files.some((f) => under(f.to, path))) r.append(el("span", { className: "was" }, "empty"));
     r.append(el("span", { className: "grow" }));
-    if (file) r.append(el("span", { className: "size" }, sizeOf(file.size)));
+    if (file && !file.placeholder) r.append(el("span", { className: "size" }, sizeOf(file.size)));
     const btn = el("button", { type: "button", className: "link" }, "Rename");
     btn.addEventListener("click", () => { renaming = path; render(); });
     r.append(btn);
@@ -237,6 +267,7 @@
   // An operation, said the way the list under the tree shows it.
   const describe = (op) =>
     op.op === "create_folder" ? ["Create folder ", el("code", {}, op.path)]
+    : op.op === "create_file" ? ["Make the placeholder ", el("code", {}, op.path)]
     : op.op === "rename" ? ["Rename ", el("code", {}, op.path), " to ", el("code", {}, op.name)]
     : ["Move ", el("code", {}, op.path), " into ", el("code", {}, op.to ? op.to + "/" : "/")];
 
@@ -260,6 +291,66 @@
     document.getElementById("plural").hidden = ops.length === 1;
     document.getElementById("changes").replaceChildren(...ops.map((op) => el("li", {}, ...describe(op))));
   }
+
+  // Arrange as ESDS. The server works the layout out from the files as they
+  // came (esds.arrange) and answers with operations; they're done here one
+  // by one, as if the person had, so the tree, the list and Undo all work
+  // on them and the person can go on from there.
+  const isFolderAt = (path) => !files.some((f) => f.to === path);
+  function apply(op) {
+    const before = snapshot();
+    if (op.op === "create_folder" || op.op === "create_file") {
+      if (exists(op.path)) return say(`There is already something at "${op.path}".`), false;
+      if (op.op === "create_folder") empty.add(op.path);
+      else files.push({ from: null, to: op.path, size: 0, placeholder: op.for || nameOf(op.path) });
+    } else if (op.op === "rename") {
+      if (!relocate(op.path, join(parentOf(op.path), op.name), isFolderAt(op.path))) return false;
+    } else if (!relocate(op.path, join(op.to, nameOf(op.path)), isFolderAt(op.path))) {
+      return false;
+    }
+    record(op, before);
+    return true;
+  }
+
+  function showMissing({ missing, expected, notes }) {
+    const box = document.getElementById("esds-result");
+    const parts = [];
+    if (missing.length) {
+      parts.push(
+        el("div", { className: "warn" }, `${missing.length} of the ${expected} files this layout expects are missing.`),
+        el("div", { className: "hint tight" },
+          "Each one gets a placeholder where it will go: an empty file with a dot before its name. Replace it with the real file when you have it."),
+        el("ul", {}, ...missing.map((m) => el("li", {}, el("code", {}, m.path), m.what ? ` (${m.what})` : ""))),
+      );
+    } else {
+      parts.push(el("div", {}, `All ${expected} files this layout expects are here.`));
+    }
+    if (notes.length) parts.push(el("ul", {}, ...notes.map((n) => el("li", {}, n))));
+    box.replaceChildren(...parts);
+    box.hidden = false;
+  }
+
+  async function arrangeAsEsds() {
+    if (ops.length && !confirm("This starts again from the files as they came, so the changes made here so far are dropped. Go on?")) return;
+    const labels = new URLSearchParams();
+    document.querySelectorAll("#esds input[data-label]").forEach((input) => labels.set(input.dataset.label, input.value));
+    let answer;
+    try {
+      const resp = await fetch("/esds", { method: "POST", body: labels });
+      answer = await resp.json();
+      if (!resp.ok) return say(answer.error || "That can't be arranged.");
+    } catch (e) {
+      return say("The layout couldn't be worked out: the session didn't answer.");
+    }
+    reset();
+    for (const op of answer.operations) if (!apply(op)) break;
+    showMissing(answer);
+    render();
+  }
+  document.getElementById("esds-go").addEventListener("click", arrangeAsEsds);
+  document.getElementById("esds").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && e.target.matches("input")) { e.preventDefault(); arrangeAsEsds(); }
+  });
 
   document.getElementById("reset").addEventListener("click", reset);
   document.getElementById("undo").addEventListener("click", undo);

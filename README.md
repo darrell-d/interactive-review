@@ -57,6 +57,27 @@ the person did in the page, in the order they did it.
 | `create_folder` | makes the folder at `path` (its parent exists by then) |
 | `rename` | gives the file or folder at `path` the new `name`, in the same folder |
 | `move` | puts the file or folder at `path` into the folder `to` (`""` is the top), keeping its name |
+| `create_file` | makes a placeholder at `path` for a file that is missing (`for` names it). Only "Arrange as an ESDS dataset" makes these |
+
+## Arrange as an ESDS dataset
+
+The panel at the top of the page puts the files into the Epilepsy.Science
+layout (ESDS, which follows BIDS) for one recording of one subject. The person
+types the subject, session, task and, optionally, acquisition labels, and
+presses **Preview ESDS layout**. The app then:
+
+- makes the folders (`primary/sub-<S>/ses-<X>/ieeg/<recording>_ieeg-mef/`);
+- renames each `.mef` file for its channel (`EEG AD 01-Ref.mef` becomes
+  `AD01.mef`, a guess from the name) and moves it into the recording's folder;
+- moves any file that already has an expected name into its place;
+- lists every expected file that is missing, and makes a **placeholder** for
+  each: an empty file with a dot before its name (`.dataset_description.json`),
+  where the real file will go.
+
+Nothing is decided by the preview. The result is ordinary operations, shown in
+the tree and the list, and the person can rename, move or undo them before
+saving. The layout itself is data, `processor/esds_layout.json`, in the shape
+of the layout file from ClickUp 868mwk30a.
 
 How to execute it:
 

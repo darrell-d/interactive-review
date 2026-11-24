@@ -71,6 +71,7 @@ class _Tree:
 
     def __init__(self, files):
         self.files = {f["path"]: f["path"] for f in files}  # original -> current
+        self.placeholders = set()  # files made here, for ones that are missing
         self.folders = set()
         for path in self.files:
             parts = path.split("/")[:-1]
@@ -78,7 +79,7 @@ class _Tree:
 
     def kind(self, path):
         """"file", "folder", or "" when nothing is at the path."""
-        if path in self.files.values():
+        if path in self.files.values() or path in self.placeholders:
             return "file"
         return "folder" if path in self.folders else ""
 
@@ -86,6 +87,7 @@ class _Tree:
         """Put the file or folder at old, and all that's in it, at new."""
         moved = lambda p: new if p == old else new + p[len(old):] if p.startswith(old + "/") else p
         self.files = {src: moved(cur) for src, cur in self.files.items()}
+        self.placeholders = {moved(p) for p in self.placeholders}
         self.folders = {moved(f) for f in self.folders}
 
 
@@ -101,6 +103,10 @@ def replay(files, operations):
       {"op": "create_folder", "path": "archive"}
       {"op": "rename", "path": "raw", "name": "source"}
       {"op": "move", "path": "notes.txt", "to": "archive"}   ("" is the top)
+      {"op": "create_file", "path": "archive/.readme.md", "for": "readme.md"}
+
+    create_file makes an empty placeholder for a file that is missing ("for"
+    names it). It isn't one of the input files, so it isn't in the layout.
     """
     tree = _Tree(files)
     done = []
@@ -111,16 +117,22 @@ def replay(files, operations):
         if not isinstance(path, str) or not path:
             return None, None, f"operation {n} has no path"
 
-        if what == "create_folder":
+        if what in ("create_folder", "create_file"):
             why = next((w for w in map(_bad_name, path.split("/")) if w), "")
             if why:
-                return None, None, f"operation {n}: the folder's path {why}"
+                return None, None, f"operation {n}: the {what[7:]}'s path {why}"
             if tree.kind(path):
                 return None, None, f"operation {n}: {path!r} already exists"
             if _parent(path) and tree.kind(_parent(path)) != "folder":
                 return None, None, f"operation {n}: {_parent(path)!r} isn't a folder"
-            tree.folders.add(path)
-            done.append({"op": what, "path": path})
+            record = {"op": what, "path": path}
+            if what == "create_folder":
+                tree.folders.add(path)
+            else:
+                tree.placeholders.add(path)
+                if isinstance(op.get("for"), str) and not _bad_name(op["for"]):
+                    record["for"] = op["for"]
+            done.append(record)
             continue
 
         kind = tree.kind(path)

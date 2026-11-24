@@ -41,6 +41,19 @@
     button.primary { background: var(--primary); color: #fff; }
     button.danger { background: #fff; color: var(--danger); border-color: var(--danger); }
     .hint { color: var(--muted); font-size: 13px; margin: 16px 0 0; }
+    .labels { display: flex; gap: 12px; flex-wrap: wrap; margin: 14px 0; }
+    .labels label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+    .labelled { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: #fff; }
+    .labelled:focus-within { border-color: var(--primary); }
+    .labelled .prefix { padding: 6px 8px; background: var(--bg); color: var(--muted); font-family: ui-monospace, monospace; font-size: 13px; }
+    .labelled input { border: 0; outline: 0; padding: 6px 8px; font: inherit; width: 148px; min-width: 0; }
+    button.secondary { background: #fff; color: var(--primary); border: 1px solid var(--primary); border-radius: 6px; padding: 8px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+    .hint.tight { margin: 6px 0 0; }
+    .missing { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+    .missing .warn { color: #8a5300; font-weight: 600; }
+    .missing ul { margin: 8px 0 0; padding-left: 18px; font-size: 13px; }
+    .missing code { word-break: break-all; }
+    .row .placeholder { color: var(--muted); font-style: italic; }
     .done h1 { color: var(--ok); }
     .done.stopped h1 { color: var(--danger); }
   </style>

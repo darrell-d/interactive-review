@@ -7,7 +7,9 @@ application:
     Pauses the workflow so a person can rename and rearrange the files it was
     given, in their browser, like a file manager. Nothing is moved: the step's
     output is a manifest of what they did, as instructions (create folder,
-    rename, move) for a later step to execute.
+    rename, move) for a later step to execute. It can also arrange the files
+    as an Epilepsy.Science (ESDS) dataset and list the files that layout
+    expects but aren't there.
   type: processor
   tags: [interactive, files, organize]
 

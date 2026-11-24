@@ -1,0 +1,25 @@
+{
+  "name": "ESDS: intracranial EEG as MEF",
+  "source": "PennEPI00168 in Penn CNT, read 2026-11-16 (ClickUp 868mwk30a). Which files are required is not settled there yet, so none is marked.",
+  "labels": [
+    { "name": "subject", "title": "Subject", "prefix": "sub-", "example": "PennEPI00168" },
+    { "name": "session", "title": "Session", "prefix": "ses-", "default": "postimplant" },
+    { "name": "task", "title": "Task", "prefix": "task-", "default": "clinical" },
+    { "name": "acq", "title": "Acquisition", "prefix": "acq-", "optional": true, "example": "initial" }
+  ],
+  "recording": "primary/sub-{subject}/ses-{session}/ieeg/sub-{subject}_ses-{session}_task-{task}_acq-{acq}_ieeg-mef/",
+  "recordingFiles": [".mef"],
+  "entries": [
+    { "path": "dataset_description.json", "what": "what the dataset is" },
+    { "path": "participants.json", "what": "the columns of participants.tsv" },
+    { "path": "participants.tsv", "what": "one row per subject" },
+    { "path": "primary/sub-{subject}/sub-{subject}_sessions.tsv", "what": "one row per session" },
+    { "path": "primary/sub-{subject}/ses-{session}/sub-{subject}_ses-{session}_scans.json", "what": "the columns of scans.tsv" },
+    { "path": "primary/sub-{subject}/ses-{session}/sub-{subject}_ses-{session}_scans.tsv", "what": "one row per recording" },
+    { "path": "primary/sub-{subject}/ses-{session}/ieeg/sub-{subject}_ses-{session}_task-{task}_acq-{acq}_channels.tsv", "what": "one row per channel" },
+    { "path": "primary/sub-{subject}/ses-{session}/ieeg/sub-{subject}_ses-{session}_task-{task}_acq-{acq}_ieeg.json", "what": "the recording as a whole" },
+    { "path": "primary/sub-{subject}/ses-{session}/ieeg/sub-{subject}_ses-{session}_task-{task}_acq-{acq}_ieeg-mef.csv", "what": "annotations" },
+    { "path": "primary/sub-{subject}/ses-{session}/ieeg/sub-{subject}_ses-{session}_task-{task}_acq-{acq}_space-MNI152NLin6ASym_coordsystem.json", "what": "the space the electrode positions are in" },
+    { "path": "primary/sub-{subject}/ses-{session}/ieeg/sub-{subject}_ses-{session}_task-{task}_acq-{acq}_space-MNI152NLin6ASym_electrodes.tsv", "what": "where each electrode is" }
+  ]
+}

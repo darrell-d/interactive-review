@@ -15,6 +15,7 @@ import json
 
 from flask import Flask, abort, jsonify, redirect, render_template, request, send_from_directory, url_for
 
+from processor import esds
 from processor.layout import replay
 from processor.session import CLOSED, CONTINUE, STOP
 
@@ -26,6 +27,7 @@ def create_app(cfg, session):
         return render_template(
             "index.html",
             files=session.files,
+            esds_labels=esds.LAYOUT["labels"],
             idle_minutes=cfg["idle_timeout"] // 60,
             error=error,
         )
@@ -51,6 +53,16 @@ def create_app(cfg, session):
     @app.get("/files/<path:path>")
     def file(path):
         return send_from_directory(cfg["input_dir"], path)
+
+    # The input files arranged as an ESDS dataset, as operations the page
+    # shows and the person can still change. Nothing is kept here: it's saved
+    # like any other layout.
+    @app.post("/esds")
+    def arrange_as_esds():
+        labels, why = esds.read_labels(request.form)
+        if labels is None:
+            return jsonify(error=f"That can't be arranged: {why}."), 400
+        return jsonify(esds.arrange(session.files, labels))
 
     @app.post("/save")
     def save():

@@ -94,6 +94,24 @@ class ReplayTest(unittest.TestCase):
             {"op": "move", "kind": "file", "path": "source/b.csv", "to": ""},
         ])
 
+    def test_a_placeholder_is_a_file_that_is_not_one_of_the_inputs(self):
+        layout, operations, why = replay(FILES, [
+            {"op": "create_folder", "path": "primary"},
+            {"op": "create_file", "path": "primary/.sessions.tsv", "for": "sessions.tsv"},
+            {"op": "rename", "path": "primary/.sessions.tsv", "name": ".sub-1_sessions.tsv"},
+            {"op": "move", "path": "primary/.sub-1_sessions.tsv", "to": "raw"},
+            {"op": "create_file", "path": ".readme.md", "for": "a/b"},
+        ])
+        self.assertEqual(why, "")
+        self.assertEqual(layout, {"notes.txt": "notes.txt", "raw/a.csv": "raw/a.csv", "raw/b.csv": "raw/b.csv"})
+        self.assertEqual(operations, [
+            {"op": "create_folder", "path": "primary"},
+            {"op": "create_file", "path": "primary/.sessions.tsv", "for": "sessions.tsv"},
+            {"op": "rename", "kind": "file", "path": "primary/.sessions.tsv", "name": ".sub-1_sessions.tsv"},
+            {"op": "move", "kind": "file", "path": "primary/.sub-1_sessions.tsv", "to": "raw"},
+            {"op": "create_file", "path": ".readme.md"},
+        ])
+
     def test_a_folder_emptied_by_a_move_is_still_a_folder(self):
         layout, _, why = replay(FILES, [
             {"op": "move", "path": "raw/a.csv", "to": ""},
@@ -132,6 +150,12 @@ class ReplayTest(unittest.TestCase):
                 {"op": "move", "path": "raw", "to": "raw/deep"},
             ],
             "a folder that already exists": [{"op": "create_folder", "path": "raw"}],
+            "a placeholder where a file is": [{"op": "create_file", "path": "notes.txt"}],
+            "a placeholder in a folder that doesn't exist": [{"op": "create_file", "path": "primary/.x"}],
+            "a placeholder made twice": [{"op": "create_file", "path": ".x"}, {"op": "create_file", "path": ".x"}],
+            "a file moved onto a placeholder": [
+                {"op": "create_file", "path": "raw/notes.txt"}, {"op": "move", "path": "notes.txt", "to": "raw"},
+            ],
             "a folder where a file is": [{"op": "create_folder", "path": "notes.txt"}],
             "a folder inside one that doesn't exist": [{"op": "create_folder", "path": "x/y"}],
             "a folder outside the input": [{"op": "create_folder", "path": "../x"}],
