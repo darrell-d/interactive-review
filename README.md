@@ -38,6 +38,7 @@ the person did in the page, in the order they did it.
   "version": 1,
   "at": "2026-11-13T20:21:59+00:00",
   "notes": "tidied the raw scans",
+  "view": { "id": "b24adc5f-e802-4f20-a609-8d9a886a5663", "version": 1 },
   "operations": [
     { "op": "rename", "kind": "folder", "path": "raw", "name": "source" },
     { "op": "rename", "kind": "file", "path": "source/scan a.csv", "name": "scan_a.csv" },
@@ -67,6 +68,12 @@ How to execute it:
 - **`files` is the result to check against**: every input file, with the path
   it started at (`from`) and the path it should have once the operations are
   done (`to`).
+- **`view` says where the paths come from**, when the files were picked for
+  the run. Picked files arrive flat, without the folder they are in in the
+  dataset (`scan.mef` for `ieeg/scan.mef`), so the paths above are not dataset
+  paths. `view` names the dataset view that knows each file's real place
+  (views-service, `GET /views/{id}/versions/{version}/entries`). It is left
+  out when the files came from a previous step.
 - Operations are recorded as done, not minimised: a rename followed by another
   rename is two operations. Anything undone in the page is not in the list.
 
@@ -122,9 +129,11 @@ the workflow.
 - **Don't log requests.** The first request of a session carries the session
   token in its URL, and the step's log is readable by everyone with access to
   the run. Werkzeug's access log is turned off for that reason.
-- **Files chosen by a saved view don't arrive.** A data source's files and
-  folders picked for the run are downloaded; a view's are not, for an
-  interactive step (a notebook fetches them on request).
+- **Files picked through a view need a recent compute node.** Before the
+  provisioner change "Stage a view's files for a web app session"
+  (`v1.57.0-rc2`), a view's files were not downloaded for any interactive
+  step and the app saw only `.pennsieve/view.json`. That file is the view's
+  description; the app never lists it.
 - **`/files/` is limited on some compute nodes.** On basic and compliant nodes
   the platform's gateway refuses file responses over 50 MB on that path, so a
   large file can't be previewed there.

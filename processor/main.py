@@ -38,7 +38,7 @@ import time
 from werkzeug.serving import make_server
 
 from processor.app import create_app
-from processor.layout import input_files, write_manifest
+from processor.layout import input_files, input_view, write_manifest
 from processor.session import CONTINUE, IDLE, STOP, TERMINATED, Session
 
 logging.basicConfig(
@@ -103,7 +103,10 @@ def finish(cfg, session):
         log.error("the session ended (%s) before a layout was saved; failing the step", outcome)
         return 1
 
-    path = write_manifest(cfg["output_dir"], session.files, session.layout, session.operations, session.notes)
+    path = write_manifest(
+        cfg["output_dir"], session.files, session.layout, session.operations, session.notes,
+        view=input_view(cfg["input_dir"]),
+    )
     changed = sum(1 for src, dest in session.layout.items() if src != dest)
     log.info("wrote %s", path)
     log.info(

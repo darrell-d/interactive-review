@@ -6,7 +6,7 @@ import os
 import tempfile
 import unittest
 
-from processor.layout import input_files, replay, write_manifest
+from processor.layout import input_files, input_view, replay, write_manifest
 
 FILES = [
     {"path": "notes.txt", "size": 3},
@@ -26,6 +26,40 @@ class InputFilesTest(unittest.TestCase):
             files = input_files(root)
         self.assertEqual([f["path"] for f in files], ["notes.txt", "raw/a.csv", "raw/b.csv"])
         self.assertEqual(files[2]["size"], len("a,b,c\n"))
+
+    def test_a_view_description_is_not_one_of_the_files(self):
+        with tempfile.TemporaryDirectory() as root:
+            for path in ("scan.mef", ".pennsieve/view.json", "records/.pennsieve/view.json", "records/a.csv"):
+                full = os.path.join(root, path)
+                os.makedirs(os.path.dirname(full), exist_ok=True)
+                with open(full, "w") as f:
+                    f.write("{}")
+            self.assertEqual([f["path"] for f in input_files(root)], ["records/a.csv", "scan.mef"])
+
+
+class InputViewTest(unittest.TestCase):
+    def write(self, root, text):
+        os.makedirs(os.path.join(root, ".pennsieve"))
+        with open(os.path.join(root, ".pennsieve", "view.json"), "w") as f:
+            f.write(text)
+
+    def test_reads_the_view_and_its_version(self):
+        crate = {"@graph": [
+            {"@id": "ro-crate-metadata.json", "@type": "CreativeWork"},
+            {"@id": "./", "@type": "Dataset", "identifier": "b24adc5f-0000", "version": "3", "name": "Run: files"},
+        ]}
+        with tempfile.TemporaryDirectory() as root:
+            self.write(root, json.dumps(crate))
+            self.assertEqual(input_view(root), {"id": "b24adc5f-0000", "version": 3})
+
+    def test_files_that_did_not_come_from_a_view_have_none(self):
+        with tempfile.TemporaryDirectory() as root:
+            self.assertIsNone(input_view(root))
+            self.write(root, "not json")
+            self.assertIsNone(input_view(root))
+        with tempfile.TemporaryDirectory() as root:
+            self.write(root, json.dumps({"@graph": [{"@id": "./", "name": "no identifier"}]}))
+            self.assertIsNone(input_view(root))
 
 
 class ReplayTest(unittest.TestCase):

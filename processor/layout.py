@@ -15,16 +15,37 @@ from datetime import datetime, timezone
 # The output declared in app.yml.
 MANIFEST = "manifest"
 
+# When the files come from a dataset view, the platform puts the view's
+# description at INPUT_DIR/.pennsieve/view.json. It isn't one of the person's
+# files, so it's never listed.
+VIEW_DIR = ".pennsieve"
+VIEW_FILE = "view.json"
+
 
 def input_files(input_dir):
     """Every file below INPUT_DIR: [{"path", "size"}], path relative to it."""
     files = []
-    for dirpath, _, filenames in os.walk(input_dir, followlinks=True):
+    for dirpath, dirnames, filenames in os.walk(input_dir, followlinks=True):
+        dirnames[:] = [d for d in dirnames if d != VIEW_DIR]
         for name in filenames:
             full = os.path.join(dirpath, name)
             path = os.path.relpath(full, input_dir).replace(os.sep, "/")
             files.append({"path": path, "size": os.path.getsize(full)})
     return sorted(files, key=lambda f: f["path"])
+
+
+def input_view(input_dir):
+    """The dataset view the files came from, {"id", "version"}, or None when
+    they didn't come from one. The view lists the files flat, as the person
+    picked them; the step that executes the manifest uses this to ask where
+    each one really is in the dataset."""
+    try:
+        with open(os.path.join(input_dir, VIEW_DIR, VIEW_FILE)) as f:
+            graph = json.load(f).get("@graph") or []
+        root = next(e for e in graph if isinstance(e, dict) and e.get("@id") == "./")
+        return {"id": str(root["identifier"]), "version": int(root["version"])}
+    except (OSError, ValueError, KeyError, StopIteration, TypeError, AttributeError):
+        return None
 
 
 def _parent(path):
@@ -130,9 +151,10 @@ def replay(files, operations):
     return tree.files, done, ""
 
 
-def write_manifest(output_dir, files, layout, operations, notes):
+def write_manifest(output_dir, files, layout, operations, notes, view=None):
     """Write OUTPUT_DIR/manifest/manifest.json: "operations" is what to do, in
-    order, and "files" where every file is once that's done."""
+    order, and "files" where every file is once that's done. "view" is the
+    dataset view the files came from (input_view), when they came from one."""
     manifest = {
         "version": 1,
         "at": datetime.now(timezone.utc).isoformat(),
@@ -140,6 +162,8 @@ def write_manifest(output_dir, files, layout, operations, notes):
         "operations": operations,
         "files": [{"from": f["path"], "to": layout[f["path"]], "size": f["size"]} for f in files],
     }
+    if view:
+        manifest["view"] = view
     folder = os.path.join(output_dir, MANIFEST)
     os.makedirs(folder, exist_ok=True)
     path = os.path.join(folder, "manifest.json")

@@ -70,6 +70,18 @@ class AppTest(unittest.TestCase):
         self.assertEqual(manifest["operations"], [{"op": "rename", "kind": "folder", "path": "raw", "name": "source"}])
         self.assertEqual([f["to"] for f in manifest["files"]], ["source/a.csv", "source/b.csv"])
 
+    def test_the_manifest_names_the_view_the_files_came_from(self):
+        crate = {"@graph": [{"@id": "./", "identifier": "view-1", "version": "2"}]}
+        os.makedirs(os.path.join(self.cfg["input_dir"], ".pennsieve"))
+        with open(os.path.join(self.cfg["input_dir"], ".pennsieve", "view.json"), "w") as f:
+            json.dump(crate, f)
+        self.save([])
+        self.assertEqual(finish(self.cfg, self.session), 0)
+        with open(os.path.join(self.cfg["output_dir"], "manifest", "manifest.json")) as f:
+            manifest = json.load(f)
+        self.assertEqual(manifest["view"], {"id": "view-1", "version": 2})
+        self.assertEqual([f["from"] for f in manifest["files"]], ["raw/a.csv", "raw/b.csv"])
+
     def test_saving_with_nothing_done_is_a_manifest_with_no_operations(self):
         self.save([])
         self.assertEqual(finish(self.cfg, self.session), 0)
